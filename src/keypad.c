@@ -13,18 +13,40 @@ void init_keypad() {
 	init_tim7();
 
 	RCC -> AHBENR |= RCC_AHBENR_GPIOCEN;
+	//set GPIOC outputs 4-7
 	GPIOC -> MODER &= ~0x0000ff00;
 	GPIOC -> MODER |=  0x00005500;
 	GPIOC -> OTYPER |= 0x000000f0;
-	//now set the inputs 0-3
+	//set GPIOC inputs 0-3
 	GPIOC -> MODER &= ~0x000000ff;
 	GPIOC -> PUPDR &= ~0x000000ff;
 	GPIOC -> PUPDR |=  0x00000055;
 }
-
+*//
+void show_keypad(int c) {
+    int size = 0;		//Total size of characters being transmitted
+    char value = '0';	//Single character transfer 'value'
+    const char map;		//Character array
+    for (;;size++) {
+        value = get_keypress(); //Makes value equal to current button press character (i.e. A,B,C,D,0,1,2,3,etc.)
+	    if(value == '#') {
+                size--; 	//Subtracts one, to get correct size value for next for loop (Otherwise last value outputted is always garbage)
+		for(int count = 0; count <= size; count++) {
+		    GPIOC -> ODR = ((c & 7) << 4) | map(count);	//Shows all values on output (Think output is in GPIOC considering that no other port is mentioned)
+		}
+		count = 0; 	//Resets count, size and value (just in case they are carry overed by software gore)
+		size = 0;
+		value = '0';
+		break;		//Exits for loop
+	}
+        map[size] = value;  	//Maps all values to constant character array
+    }
+    return;
+}
+//*
 void init_tim7(void)
 {
-    //enable the clock and trigger at 1khz
+    //Sets timer 7 to 1 kHz
     RCC -> APB1ENR |= 1 << 5;
     TIM7 -> DIER |= 1<<0;
     TIM7 -> PSC = 1000-1;
@@ -34,7 +56,6 @@ void init_tim7(void)
 }
 
 void TIM7_IRQHandler(void) {
-    // Remember to acknowledge the interrupt here!
     TIM7 -> SR &= ~0x00000001;
     int rows = read_rows();
     update_history(col, rows);
@@ -56,7 +77,6 @@ char pop_queue() {
 
 void update_history(int c, int rows)
 {
-    // We used to make students do this in assembly language.
     for(int i = 0; i < 4; i++) {
         hist[4*c+i] = (hist[4*c+i]<<1) + ((rows>>i)&1);
         if (hist[4*c+i] == 0x01)
@@ -64,6 +84,7 @@ void update_history(int c, int rows)
         if (hist[4*c+i] == 0xfe)
             push_queue(keymap[4*c+i]);
     }
+	//show_keypad(c);
 }
 
 void drive_column(int c)
@@ -88,13 +109,9 @@ char get_key_event(void) {
 char get_keypress() {
     char event;
     for(;;) {
-        // Wait for every button event...
         event = get_key_event();
-        // ...but ignore if it's a release.
         if (event & 0x80)
             break;
     }
     return event & 0x7f;
 }
-
-
